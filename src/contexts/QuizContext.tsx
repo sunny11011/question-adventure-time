@@ -147,11 +147,21 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
 
       if (error) throw error;
 
-      const formattedQuizzes = data.map(quiz => ({
+      const formattedQuizzes: Quiz[] = data.map(quiz => ({
         ...quiz,
         created_at: new Date(quiz.created_at),
-        timeouts_in_seconds: quiz.timeouts_in_seconds,
-        questions_per_level: quiz.questions_per_level
+        teams: quiz.teams as Team[],
+        questions: quiz.questions as Question[],
+        timeouts_in_seconds: quiz.timeouts_in_seconds as {
+          easy: number;
+          medium: number;
+          hard: number;
+        },
+        questions_per_level: quiz.questions_per_level as {
+          easy: number;
+          medium: number;
+          hard: number;
+        }
       }));
 
       setQuizzes(formattedQuizzes);

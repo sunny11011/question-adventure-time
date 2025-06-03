@@ -14,6 +14,14 @@ const Navbar = () => {
     navigate('/');
   };
 
+  // Get user display name from metadata or email
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    if (user.user_metadata?.name) return user.user_metadata.name;
+    if (user.email) return user.email.split('@')[0];
+    return 'User';
+  };
+
   return (
     <nav className="bg-white border-b py-4 px-6">
       <div className="container mx-auto flex justify-between items-center">
@@ -36,7 +44,7 @@ const Navbar = () => {
               </Button>
               <div className="hidden md:flex items-center gap-2 bg-quiz-purple text-white text-sm font-medium px-3 py-1.5 rounded-full">
                 <div className="h-2 w-2 rounded-full bg-white"></div>
-                {user.name}
+                {getUserDisplayName()}
               </div>
             </>
           ) : (

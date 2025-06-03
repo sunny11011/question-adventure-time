@@ -4,25 +4,25 @@ import { Question, QuizLevel } from '@/contexts/QuizContext';
 // Using Hugging Face's free inference API
 const HF_API_URL = 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium';
 
-interface QuizGenerationRequest {
-  topics: string[];
-  questionsPerLevel: {
-    easy: number;
-    medium: number;
-    hard: number;
-  };
+interface QuestionGenerationRequest {
+  easy: number;
+  medium: number;
+  hard: number;
 }
 
-export const generateQuizQuestions = async (request: QuizGenerationRequest): Promise<Question[]> => {
+export const generateQuizQuestions = async (
+  topics: string[], 
+  questionsPerLevel: QuestionGenerationRequest
+): Promise<Question[]> => {
   const questions: Question[] = [];
   
   // Generate questions for each level
   for (const level of ['easy', 'medium', 'hard'] as QuizLevel[]) {
-    const count = request.questionsPerLevel[level];
+    const count = questionsPerLevel[level];
     
     for (let i = 0; i < count; i++) {
-      const topicIndex = i % request.topics.length;
-      const topic = request.topics[topicIndex];
+      const topicIndex = i % topics.length;
+      const topic = topics[topicIndex];
       
       try {
         const question = await generateSingleQuestion(topic, level, i + 1);
@@ -73,7 +73,7 @@ const generateQuestionWithFallback = async (topic: string, level: QuizLevel, que
   return generateFallbackQuestion(topic, level, questionNumber);
 };
 
-const generateFallbackQuestion = (topic: string, level: QuizLevel, questionNumber: number) => {
+const generateFallbackQuestion = (topic: string, level: QuizLevel, questionNumber: number): Omit<Question, 'id' | 'level'> => {
   const difficultyText = {
     easy: 'basic',
     medium: 'intermediate', 

@@ -28,7 +28,7 @@ const QuizCard = ({ quiz, onStart }: QuizCardProps) => {
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-bold">{quiz.title}</CardTitle>
           <div className="text-sm text-gray-500">
-            {formatDate(quiz.createdAt)}
+            {formatDate(quiz.created_at)}
           </div>
         </div>
       </CardHeader>
@@ -51,7 +51,7 @@ const QuizCard = ({ quiz, onStart }: QuizCardProps) => {
             </p>
             <p className="mb-1">
               <span className="font-medium">Questions:</span> {
-                Object.values(quiz.questionsPerLevel).reduce((acc, curr) => acc + curr, 0)
+                Object.values(quiz.questions_per_level).reduce((acc: number, curr: number) => acc + curr, 0)
               }
             </p>
           </div>
@@ -60,15 +60,15 @@ const QuizCard = ({ quiz, onStart }: QuizCardProps) => {
         <div className="grid grid-cols-3 gap-2 text-xs mt-2">
           <div className="p-2 rounded-md bg-green-50 border border-green-100">
             <div className="font-semibold text-green-600 mb-1">Easy</div>
-            <div>{quiz.questionsPerLevel.easy} Q / {quiz.timeoutsInSeconds.easy}s</div>
+            <div>{quiz.questions_per_level.easy} Q / {quiz.timeouts_in_seconds.easy}s</div>
           </div>
           <div className="p-2 rounded-md bg-orange-50 border border-orange-100">
             <div className="font-semibold text-orange-600 mb-1">Medium</div>
-            <div>{quiz.questionsPerLevel.medium} Q / {quiz.timeoutsInSeconds.medium}s</div>
+            <div>{quiz.questions_per_level.medium} Q / {quiz.timeouts_in_seconds.medium}s</div>
           </div>
           <div className="p-2 rounded-md bg-red-50 border border-red-100">
             <div className="font-semibold text-red-600 mb-1">Hard</div>
-            <div>{quiz.questionsPerLevel.hard} Q / {quiz.timeoutsInSeconds.hard}s</div>
+            <div>{quiz.questions_per_level.hard} Q / {quiz.timeouts_in_seconds.hard}s</div>
           </div>
         </div>
       </CardContent>

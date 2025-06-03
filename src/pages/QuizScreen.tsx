@@ -153,7 +153,7 @@ const QuizScreen = () => {
                   {levelInfo.title}
                 </h1>
                 <p className="text-gray-600">
-                  Questions with {activeQuiz.timeoutsInSeconds[activeLevel]} second timer
+                  Questions with {activeQuiz.timeouts_in_seconds[activeLevel]} second timer
                 </p>
               </div>
               
