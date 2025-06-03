@@ -164,7 +164,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           medium: number;
           hard: number;
         },
-        category_ids: quiz.category_ids as number[] || []
+        category_ids: (quiz as any).category_ids as number[] || []
       }));
 
       setQuizzes(formattedQuizzes);

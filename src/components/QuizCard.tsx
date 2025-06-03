@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Quiz } from '@/contexts/QuizContext';
-import { trash } from 'lucide-react';
+import { Trash } from 'lucide-react';
 
 type QuizCardProps = {
   quiz: Quiz;
@@ -46,7 +46,7 @@ const QuizCard = ({ quiz, onStart, onDelete }: QuizCardProps) => {
               onClick={handleDelete}
               className="text-red-500 hover:text-red-700 hover:bg-red-50"
             >
-              <trash className="h-4 w-4" />
+              <Trash className="h-4 w-4" />
             </Button>
           </div>
         </div>
