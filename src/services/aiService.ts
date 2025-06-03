@@ -30,7 +30,13 @@ export const generateQuizQuestions = async (
       } catch (error) {
         console.error(`Failed to generate question for ${topic} (${level}):`, error);
         // Fallback to a basic question if AI generation fails
-        questions.push(generateFallbackQuestion(topic, level, i + 1));
+        const fallbackData = generateFallbackQuestion(topic, level, i + 1);
+        const fallbackQuestion: Question = {
+          id: `q_${level}_${i + 1}_${Date.now()}`,
+          level: level,
+          ...fallbackData
+        };
+        questions.push(fallbackQuestion);
       }
     }
   }
