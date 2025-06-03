@@ -11,7 +11,7 @@ import Layout from '@/components/Layout';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { quizzes, isCreating, setIsCreating, startQuiz } = useQuiz();
+  const { quizzes, isCreating, setIsCreating, startQuiz, deleteQuiz } = useQuiz();
   
   // Filter quizzes for the current user
   const userQuizzes = quizzes.filter(quiz => quiz.created_by === user?.id);
@@ -23,6 +23,10 @@ const Dashboard = () => {
   const handleStartQuiz = (quizId: string) => {
     startQuiz(quizId);
     navigate('/quiz');
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    await deleteQuiz(quizId);
   };
   
   return (
@@ -64,7 +68,8 @@ const Dashboard = () => {
                   <QuizCard 
                     key={quiz.id} 
                     quiz={quiz} 
-                    onStart={() => handleStartQuiz(quiz.id)} 
+                    onStart={() => handleStartQuiz(quiz.id)}
+                    onDelete={handleDeleteQuiz}
                   />
                 ))}
               </div>

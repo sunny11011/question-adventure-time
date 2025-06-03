@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateQuizQuestions } from '@/services/aiService';
+import { generateQuizQuestions } from '@/services/triviaService';
 import { toast } from 'sonner';
 
 export type QuizLevel = 'easy' | 'medium' | 'hard';
@@ -13,6 +12,7 @@ export type Question = {
   options: string[];
   correctAnswer: number;
   level: QuizLevel;
+  teamId?: string; // Add team-specific questions
 };
 
 export type Team = {
@@ -45,6 +45,7 @@ export type Quiz = {
     medium: number;
     hard: number;
   };
+  category_ids?: number[];
 };
 
 type QuizContextType = {
@@ -73,6 +74,7 @@ type QuizContextType = {
   nextLevel: () => boolean;
   endQuiz: () => void;
   loadQuizzes: () => Promise<void>;
+  deleteQuiz: (quizId: string) => Promise<void>;
 };
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -161,7 +163,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           easy: number;
           medium: number;
           hard: number;
-        }
+        },
+        category_ids: quiz.category_ids as number[] || []
       }));
 
       setQuizzes(formattedQuizzes);
@@ -180,13 +183,20 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     try {
       console.log('Starting quiz creation...');
       
-      // Generate questions using AI
+      // Generate questions using Trivia API with different questions for each team
       const questions = await generateQuizQuestions(
-        quizData.topics, 
-        quizData.questions_per_level
+        quizData.category_ids || [], 
+        quizData.questions_per_level,
+        quizData.teams.length
       );
 
       console.log('Generated questions:', questions);
+
+      // Assign questions to teams
+      const questionsWithTeams = questions.map((question, index) => ({
+        ...question,
+        teamId: quizData.teams[index % quizData.teams.length].id
+      }));
 
       // Save to Supabase
       const { data, error } = await supabase
@@ -196,10 +206,11 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           topics: quizData.topics,
           created_by: user.id,
           teams: quizData.teams,
-          questions: questions,
+          questions: questionsWithTeams,
           show_answers_at_end: quizData.show_answers_at_end,
           timeouts_in_seconds: quizData.timeouts_in_seconds,
-          questions_per_level: quizData.questions_per_level
+          questions_per_level: quizData.questions_per_level,
+          category_ids: quizData.category_ids
         })
         .select()
         .single();
@@ -216,6 +227,31 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       console.error('Error creating quiz:', error);
       toast.error('Failed to create quiz: ' + error.message);
       throw error;
+    }
+  };
+
+  const deleteQuiz = async (quizId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to delete a quiz');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .delete()
+        .eq('id', quizId)
+        .eq('created_by', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setQuizzes(prev => prev.filter(quiz => quiz.id !== quizId));
+      
+      toast.success('Quiz deleted successfully!');
+    } catch (error: any) {
+      console.error('Error deleting quiz:', error);
+      toast.error('Failed to delete quiz: ' + error.message);
     }
   };
 
@@ -292,11 +328,14 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setSelectedOption(null);
     setAnswersRevealed(false);
     
-    // Find questions filtered by current level
-    const levelQuestions = activeQuiz.questions.filter(q => q.level === activeLevel);
+    // Get questions for current team and level
+    const currentTeam = activeQuiz.teams[currentTeamIndex];
+    const teamQuestions = activeQuiz.questions.filter(q => 
+      q.level === activeLevel && q.teamId === currentTeam.id
+    );
     
-    // If we've reached the end of the level, stay at the last question
-    if (currentQuestionIndex >= levelQuestions.length - 1) {
+    // If we've reached the end of the level for this team, stay at the last question
+    if (currentQuestionIndex >= teamQuestions.length - 1) {
       return;
     }
     
@@ -380,6 +419,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       nextLevel,
       endQuiz,
       loadQuizzes,
+      deleteQuiz,
     }}>
       {children}
     </QuizContext.Provider>

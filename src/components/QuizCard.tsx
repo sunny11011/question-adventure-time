@@ -4,13 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Quiz } from '@/contexts/QuizContext';
+import { trash } from 'lucide-react';
 
 type QuizCardProps = {
   quiz: Quiz;
   onStart: () => void;
+  onDelete: (quizId: string) => void;
 };
 
-const QuizCard = ({ quiz, onStart }: QuizCardProps) => {
+const QuizCard = ({ quiz, onStart, onDelete }: QuizCardProps) => {
   const navigate = useNavigate();
   
   // Helper to format date
@@ -22,13 +24,30 @@ const QuizCard = ({ quiz, onStart }: QuizCardProps) => {
     });
   };
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this quiz?')) {
+      onDelete(quiz.id);
+    }
+  };
+
   return (
     <Card className="quiz-card overflow-hidden h-full flex flex-col">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-bold">{quiz.title}</CardTitle>
-          <div className="text-sm text-gray-500">
-            {formatDate(quiz.created_at)}
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-gray-500">
+              {formatDate(quiz.created_at)}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            >
+              <trash className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardHeader>

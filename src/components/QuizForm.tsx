@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Quiz, useQuiz } from '@/contexts/QuizContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import CategorySelector from '@/components/CategorySelector';
 
 const QuizForm = () => {
   const { createQuiz, setIsCreating } = useQuiz();
   const { user } = useAuth();
   
   const [title, setTitle] = useState('');
-  const [topicsInput, setTopicsInput] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [teamInput, setTeamInput] = useState('');
   const [teams, setTeams] = useState<string[]>([]);
   
@@ -52,8 +52,8 @@ const QuizForm = () => {
       return;
     }
     
-    if (!topicsInput) {
-      toast.error('Please enter at least one topic');
+    if (selectedCategories.length === 0) {
+      toast.error('Please select at least one category');
       return;
     }
     
@@ -62,23 +62,12 @@ const QuizForm = () => {
       return;
     }
     
-    // Parse topics
-    const topics = topicsInput
-      .split(',')
-      .map(topic => topic.trim())
-      .filter(topic => topic);
-    
-    if (topics.length === 0) {
-      toast.error('Please enter valid topics separated by commas');
-      return;
-    }
-    
     setIsSubmitting(true);
     
     try {
       const quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'> = {
         title,
-        topics,
+        topics: selectedCategories.map(id => `Category ${id}`), // We'll store category IDs as topics
         created_by: user?.id || 'anonymous',
         teams: teams.map(name => ({
           id: `team_${Math.random().toString(36).substring(2, 9)}`,
@@ -96,7 +85,8 @@ const QuizForm = () => {
           medium: mediumQuestions,
           hard: hardQuestions
         },
-        show_answers_at_end: showAnswers === 'end'
+        show_answers_at_end: showAnswers === 'end',
+        category_ids: selectedCategories // Store category IDs separately
       };
       
       await createQuiz(quizData);
@@ -129,20 +119,11 @@ const QuizForm = () => {
               />
             </div>
             
-            <div>
-              <Label htmlFor="topics" className="quiz-label">Topics</Label>
-              <Textarea
-                id="topics"
-                value={topicsInput}
-                onChange={(e) => setTopicsInput(e.target.value)}
-                placeholder="Enter topics separated by commas (e.g., History, Math, Science)"
-                className="quiz-input min-h-20"
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                AI will generate questions based on these topics
-              </p>
-            </div>
+            <CategorySelector
+              selectedCategories={selectedCategories}
+              onCategoriesChange={setSelectedCategories}
+              disabled={isSubmitting}
+            />
             
             <div className="space-y-2">
               <Label className="quiz-label">Teams</Label>

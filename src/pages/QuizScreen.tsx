@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuiz, QuizLevel } from '@/contexts/QuizContext';
 import { Button } from '@/components/ui/button';
 import QuizProgress from '@/components/QuizProgress';
@@ -9,6 +10,7 @@ import QuizResults from '@/components/QuizResults';
 import Layout from '@/components/Layout';
 
 const QuizScreen = () => {
+  const navigate = useNavigate();
   const { 
     activeQuiz, 
     activeLevel, 
@@ -30,30 +32,59 @@ const QuizScreen = () => {
         <div className="container py-8 text-center">
           <h1 className="text-2xl font-bold mb-4">No active quiz</h1>
           <p>Please return to the dashboard and start a quiz.</p>
+          <Button 
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 quiz-button-primary"
+          >
+            Go to Dashboard
+          </Button>
         </div>
       </Layout>
     );
   }
   
-  // Get questions for current level
-  const levelQuestions = activeQuiz.questions.filter(q => q.level === activeLevel);
+  // Get current team
+  const currentTeam = activeQuiz.teams[currentTeamIndex];
+  
+  // Get questions for current team and level
+  const teamQuestions = activeQuiz.questions.filter(q => 
+    q.level === activeLevel && q.teamId === currentTeam.id
+  );
   
   // Check if we're at the end of all levels
-  const isLastQuestion = currentQuestionIndex >= levelQuestions.length - 1;
+  const isLastQuestion = currentQuestionIndex >= teamQuestions.length - 1;
   const isLastTeam = currentTeamIndex >= activeQuiz.teams.length - 1;
   const isLastLevel = activeLevel === 'hard';
   const isQuizComplete = isLastQuestion && isLastTeam && isLastLevel;
   
   // If all questions are answered for all levels, show the results
   if (isQuizComplete && answersRevealed) {
-    return <QuizResults />;
+    return (
+      <Layout>
+        <QuizResults />
+      </Layout>
+    );
   }
   
-  // Get current question
-  const currentQuestion = levelQuestions[currentQuestionIndex];
+  // Get current question for this team
+  const currentQuestion = teamQuestions[currentQuestionIndex];
   
-  // Get current team
-  const currentTeam = activeQuiz.teams[currentTeamIndex];
+  if (!currentQuestion) {
+    return (
+      <Layout>
+        <div className="container py-8 text-center">
+          <h1 className="text-2xl font-bold mb-4">No questions available</h1>
+          <p>There are no questions for this team and level.</p>
+          <Button 
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 quiz-button-primary"
+          >
+            Go to Dashboard
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
   
   // Handle option selection
   const handleOptionSelect = (optionIndex: number) => {
