@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,27 +76,27 @@ const QuizForm = () => {
     setIsSubmitting(true);
     
     try {
-      const quizData: Omit<Quiz, 'id' | 'createdAt' | 'questions'> = {
+      const quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'> = {
         title,
         topics,
-        createdBy: user?.id || 'anonymous',
+        created_by: user?.id || 'anonymous',
         teams: teams.map(name => ({
           id: `team_${Math.random().toString(36).substring(2, 9)}`,
           name,
           score: 0,
           answeredQuestions: []
         })),
-        timeoutsInSeconds: {
+        timeouts_in_seconds: {
           easy: easyTimeout,
           medium: mediumTimeout,
           hard: hardTimeout
         },
-        questionsPerLevel: {
+        questions_per_level: {
           easy: easyQuestions,
           medium: mediumQuestions,
           hard: hardQuestions
         },
-        showAnswersAtEnd: showAnswers === 'end'
+        show_answers_at_end: showAnswers === 'end'
       };
       
       await createQuiz(quizData);

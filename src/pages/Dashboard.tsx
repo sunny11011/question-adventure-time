@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useQuiz } from '@/contexts/QuizContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,14 +9,20 @@ import QuizForm from '@/components/QuizForm';
 import Layout from '@/components/Layout';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { quizzes, isCreating, setIsCreating, startQuiz } = useQuiz();
   
   // Filter quizzes for the current user
-  const userQuizzes = quizzes.filter(quiz => quiz.createdBy === user?.id);
+  const userQuizzes = quizzes.filter(quiz => quiz.created_by === user?.id);
   
   const handleCreateQuiz = () => {
     setIsCreating(true);
+  };
+  
+  const handleStartQuiz = (quizId: string) => {
+    startQuiz(quizId);
+    navigate('/quiz');
   };
   
   return (
@@ -57,7 +64,7 @@ const Dashboard = () => {
                   <QuizCard 
                     key={quiz.id} 
                     quiz={quiz} 
-                    onStart={() => startQuiz(quiz.id)} 
+                    onStart={() => handleStartQuiz(quiz.id)} 
                   />
                 ))}
               </div>

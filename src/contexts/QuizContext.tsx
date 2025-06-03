@@ -1,5 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { generateQuizQuestions } from '@/services/aiService';
 import { toast } from 'sonner';
 
 export type QuizLevel = 'easy' | 'medium' | 'hard';
@@ -27,17 +30,17 @@ export type Quiz = {
   id: string;
   title: string;
   topics: string[];
-  createdBy: string;
-  createdAt: Date;
+  created_by: string;
+  created_at: Date;
   teams: Team[];
   questions: Question[];
-  showAnswersAtEnd: boolean;
-  timeoutsInSeconds: {
+  show_answers_at_end: boolean;
+  timeouts_in_seconds: {
     easy: number;
     medium: number;
     hard: number;
   };
-  questionsPerLevel: {
+  questions_per_level: {
     easy: number;
     medium: number;
     hard: number;
@@ -63,13 +66,13 @@ type QuizContextType = {
   answersRevealed: boolean;
   setAnswersRevealed: (revealed: boolean) => void;
   
-  createQuiz: (quizData: Omit<Quiz, 'id' | 'createdAt' | 'questions'>) => Promise<void>;
+  createQuiz: (quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'>) => Promise<void>;
   startQuiz: (quizId: string) => void;
   answerQuestion: (questionId: string, optionIndex: number) => void;
   nextQuestion: () => void;
   nextLevel: () => boolean;
   endQuiz: () => void;
-  generateQuestions: (topics: string[], questionsPerLevel: Quiz['questionsPerLevel']) => Promise<Question[]>;
+  loadQuizzes: () => Promise<void>;
 };
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -87,6 +90,7 @@ type QuizProviderProps = {
 };
 
 export const QuizProvider = ({ children }: QuizProviderProps) => {
+  const { user } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -99,40 +103,24 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
   const [answersRevealed, setAnswersRevealed] = useState(false);
   const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
 
+  // Load quizzes when user changes
   useEffect(() => {
-    // Load saved quizzes from localStorage
-    const savedQuizzes = localStorage.getItem('quizzes');
-    if (savedQuizzes) {
-      try {
-        const parsed = JSON.parse(savedQuizzes);
-        // Convert date strings back to Date objects
-        const quizzesWithDates = parsed.map((quiz: any) => ({
-          ...quiz,
-          createdAt: new Date(quiz.createdAt)
-        }));
-        setQuizzes(quizzesWithDates);
-      } catch (error) {
-        console.error('Failed to parse saved quizzes:', error);
-        localStorage.removeItem('quizzes');
-      }
+    if (user) {
+      loadQuizzes();
+    } else {
+      setQuizzes([]);
     }
-  }, []);
+  }, [user]);
 
+  // Timer logic
   useEffect(() => {
-    // Save quizzes to localStorage whenever they change
-    if (quizzes.length > 0) {
-      localStorage.setItem('quizzes', JSON.stringify(quizzes));
-    }
-  }, [quizzes]);
-
-  useEffect(() => {
-    // Timer logic
     if (isRunning && timeLeft > 0 && !answersRevealed) {
       const timerInterval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timerInterval);
             setAnswersRevealed(true);
+            setIsRunning(false);
             return 0;
           }
           return prev - 1;
@@ -147,96 +135,76 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     };
   }, [isRunning, timeLeft, answersRevealed]);
 
-  // Mock function to generate quiz questions based on topics
-  const generateQuestions = async (
-    topics: string[], 
-    questionsPerLevel: Quiz['questionsPerLevel']
-  ): Promise<Question[]> => {
-    // In a real app, this would call an AI API to generate questions
-    // For now, we'll return mock questions based on the topics and levels
+  const loadQuizzes = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false });
 
-    const mockQuestions: Question[] = [];
-    
-    // Generate easy questions
-    for (let i = 0; i < questionsPerLevel.easy; i++) {
-      const topicIndex = i % topics.length;
-      mockQuestions.push({
-        id: `q_easy_${i}`,
-        text: `Easy question about ${topics[topicIndex]} (#${i + 1})`,
-        options: [
-          `Answer option A for ${topics[topicIndex]}`,
-          `Answer option B for ${topics[topicIndex]}`,
-          `Answer option C for ${topics[topicIndex]}`,
-          `Answer option D for ${topics[topicIndex]}`
-        ],
-        correctAnswer: Math.floor(Math.random() * 4),
-        level: 'easy'
-      });
+      if (error) throw error;
+
+      const formattedQuizzes = data.map(quiz => ({
+        ...quiz,
+        created_at: new Date(quiz.created_at),
+        timeouts_in_seconds: quiz.timeouts_in_seconds,
+        questions_per_level: quiz.questions_per_level
+      }));
+
+      setQuizzes(formattedQuizzes);
+    } catch (error) {
+      console.error('Error loading quizzes:', error);
+      toast.error('Failed to load quizzes');
     }
-    
-    // Generate medium questions
-    for (let i = 0; i < questionsPerLevel.medium; i++) {
-      const topicIndex = i % topics.length;
-      mockQuestions.push({
-        id: `q_medium_${i}`,
-        text: `Medium question about ${topics[topicIndex]} (#${i + 1})`,
-        options: [
-          `Answer option A for ${topics[topicIndex]}`,
-          `Answer option B for ${topics[topicIndex]}`,
-          `Answer option C for ${topics[topicIndex]}`,
-          `Answer option D for ${topics[topicIndex]}`
-        ],
-        correctAnswer: Math.floor(Math.random() * 4),
-        level: 'medium'
-      });
-    }
-    
-    // Generate hard questions
-    for (let i = 0; i < questionsPerLevel.hard; i++) {
-      const topicIndex = i % topics.length;
-      mockQuestions.push({
-        id: `q_hard_${i}`,
-        text: `Hard question about ${topics[topicIndex]} (#${i + 1})`,
-        options: [
-          `Answer option A for ${topics[topicIndex]}`,
-          `Answer option B for ${topics[topicIndex]}`,
-          `Answer option C for ${topics[topicIndex]}`,
-          `Answer option D for ${topics[topicIndex]}`
-        ],
-        correctAnswer: Math.floor(Math.random() * 4),
-        level: 'hard'
-      });
-    }
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return mockQuestions;
   };
 
-  const createQuiz = async (quizData: Omit<Quiz, 'id' | 'createdAt' | 'questions'>) => {
-    try {
-      toast.loading('Generating quiz questions...');
-      
-      // Generate questions using our mock function
-      const questions = await generateQuestions(
-        quizData.topics, 
-        quizData.questionsPerLevel
-      );
-      
-      // Create the new quiz
-      const newQuiz: Quiz = {
-        ...quizData,
-        id: `quiz_${Math.random().toString(36).substring(2, 9)}`,
-        createdAt: new Date(),
-        questions,
-      };
-      
-      setQuizzes((prev) => [...prev, newQuiz]);
-      toast.success('Quiz created successfully!');
+  const createQuiz = async (quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'>) => {
+    if (!user) {
+      toast.error('You must be logged in to create a quiz');
       return;
-    } catch (error) {
-      toast.error('Failed to create quiz: ' + (error as Error).message);
+    }
+
+    try {
+      console.log('Starting quiz creation...');
+      
+      // Generate questions using AI
+      const questions = await generateQuizQuestions(
+        quizData.topics, 
+        quizData.questions_per_level
+      );
+
+      console.log('Generated questions:', questions);
+
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('quizzes')
+        .insert({
+          title: quizData.title,
+          topics: quizData.topics,
+          created_by: user.id,
+          teams: quizData.teams,
+          questions: questions,
+          show_answers_at_end: quizData.show_answers_at_end,
+          timeouts_in_seconds: quizData.timeouts_in_seconds,
+          questions_per_level: quizData.questions_per_level
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('Quiz saved to database:', data);
+
+      // Reload quizzes
+      await loadQuizzes();
+      
+      toast.success('Quiz created successfully!');
+    } catch (error: any) {
+      console.error('Error creating quiz:', error);
+      toast.error('Failed to create quiz: ' + error.message);
       throw error;
     }
   };
@@ -248,6 +216,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       return;
     }
     
+    console.log('Starting quiz:', quiz);
+    
     // Reset quiz state
     setActiveQuiz(quiz);
     setActiveLevel('easy');
@@ -257,8 +227,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setAnswersRevealed(false);
     
     // Set the timeout for the first question
-    setTimeLeft(quiz.timeoutsInSeconds.easy);
+    setTimeLeft(quiz.timeouts_in_seconds.easy);
     setIsRunning(true);
+    
+    console.log('Quiz state set, navigating to quiz screen');
   };
 
   const answerQuestion = (questionId: string, optionIndex: number) => {
@@ -270,14 +242,13 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setSelectedOption(optionIndex);
     
     // If we're not showing answers at the end, reveal it now
-    if (!activeQuiz.showAnswersAtEnd) {
+    if (!activeQuiz.show_answers_at_end) {
       setAnswersRevealed(true);
       setIsRunning(false);
       if (timer) clearInterval(timer);
     }
     
     // Update team score
-    const currentTeam = activeQuiz.teams[currentTeamIndex];
     const isCorrect = optionIndex === question.correctAnswer;
     
     const updatedTeams = activeQuiz.teams.map((team, i) => {
@@ -329,7 +300,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     }
     
     // Reset timer
-    setTimeLeft(activeQuiz.timeoutsInSeconds[activeLevel]);
+    setTimeLeft(activeQuiz.timeouts_in_seconds[activeLevel]);
     setIsRunning(true);
   };
 
@@ -341,14 +312,18 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setActiveLevel('medium');
       setCurrentQuestionIndex(0);
       setCurrentTeamIndex(0);
-      setTimeLeft(activeQuiz.timeoutsInSeconds.medium);
+      setSelectedOption(null);
+      setAnswersRevealed(false);
+      setTimeLeft(activeQuiz.timeouts_in_seconds.medium);
       setIsRunning(true);
       return true;
     } else if (activeLevel === 'medium') {
       setActiveLevel('hard');
       setCurrentQuestionIndex(0);
       setCurrentTeamIndex(0);
-      setTimeLeft(activeQuiz.timeoutsInSeconds.hard);
+      setSelectedOption(null);
+      setAnswersRevealed(false);
+      setTimeLeft(activeQuiz.timeouts_in_seconds.hard);
       setIsRunning(true);
       return true;
     }
@@ -358,13 +333,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
   };
 
   const endQuiz = () => {
-    // Update the quizzes list with the results
-    if (activeQuiz) {
-      setQuizzes(prev => 
-        prev.map(q => q.id === activeQuiz.id ? activeQuiz : q)
-      );
-    }
-    
     // Reset quiz state
     setActiveQuiz(null);
     setActiveLevel('easy');
@@ -401,7 +369,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       nextQuestion,
       nextLevel,
       endQuiz,
-      generateQuestions,
+      loadQuizzes,
     }}>
       {children}
     </QuizContext.Provider>
