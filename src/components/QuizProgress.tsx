@@ -17,13 +17,13 @@ const QuizProgress = () => {
   const getLevelStyles = (level: QuizLevel): { color: string; bgColor: string } => {
     switch (level) {
       case 'easy':
-        return { color: 'bg-green-500', bgColor: 'bg-green-100' };
+        return { color: 'hsl(142, 76%, 36%)', bgColor: 'bg-green-100' };
       case 'medium':
-        return { color: 'bg-orange-500', bgColor: 'bg-orange-100' };
+        return { color: 'hsl(25, 95%, 53%)', bgColor: 'bg-orange-100' };
       case 'hard':
-        return { color: 'bg-red-500', bgColor: 'bg-red-100' };
+        return { color: 'hsl(0, 84%, 60%)', bgColor: 'bg-red-100' };
       default:
-        return { color: 'bg-blue-500', bgColor: 'bg-blue-100' };
+        return { color: 'hsl(221, 83%, 53%)', bgColor: 'bg-blue-100' };
     }
   };
   
@@ -33,7 +33,10 @@ const QuizProgress = () => {
     <div className="mb-6">
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${styles.color}`}></div>
+          <div 
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: styles.color }}
+          ></div>
           <span className="font-medium capitalize">
             {activeLevel} Level - Question {currentQuestionIndex + 1}/{totalQuestions}
           </span>
@@ -44,11 +47,20 @@ const QuizProgress = () => {
         </div>
       </div>
       
-      <Progress 
-        value={currentProgress}
+      <div 
         className={`${styles.bgColor} h-2`}
-        indicatorClassName={`${styles.color}`}
-      />
+        style={{
+          '--progress-foreground': styles.color,
+        } as React.CSSProperties}
+      >
+        <Progress 
+          value={currentProgress}
+          className="h-2"
+          style={{
+            '--progress-foreground': styles.color,
+          } as React.CSSProperties}
+        />
+      </div>
     </div>
   );
 };
