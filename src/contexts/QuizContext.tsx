@@ -164,7 +164,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           medium: number;
           hard: number;
         },
-        category_ids: (quiz as any).category_ids as number[] || []
+        category_ids: quiz.category_ids || []
       }));
 
       setQuizzes(formattedQuizzes);
@@ -181,7 +181,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     }
 
     try {
-      console.log('Starting quiz creation...');
+      console.log('Starting quiz creation with data:', quizData);
       
       // Generate questions using Trivia API with different questions for each team
       const questions = await generateQuizQuestions(
@@ -210,7 +210,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           show_answers_at_end: quizData.show_answers_at_end,
           timeouts_in_seconds: quizData.timeouts_in_seconds,
           questions_per_level: quizData.questions_per_level,
-          category_ids: quizData.category_ids
+          category_ids: quizData.category_ids || []
         })
         .select()
         .single();

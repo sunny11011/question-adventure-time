@@ -32,6 +32,7 @@ export type Database = {
       }
       quizzes: {
         Row: {
+          category_ids: number[] | null
           created_at: string
           created_by: string
           id: string
@@ -44,6 +45,7 @@ export type Database = {
           topics: string[]
         }
         Insert: {
+          category_ids?: number[] | null
           created_at?: string
           created_by: string
           id?: string
@@ -56,6 +58,7 @@ export type Database = {
           topics: string[]
         }
         Update: {
+          category_ids?: number[] | null
           created_at?: string
           created_by?: string
           id?: string

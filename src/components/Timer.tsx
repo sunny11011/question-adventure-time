@@ -3,18 +3,24 @@ import React, { useEffect } from 'react';
 import { useQuiz } from '@/contexts/QuizContext';
 
 const Timer = () => {
-  const { timeLeft, isRunning, answersRevealed } = useQuiz();
+  const { timeLeft, isRunning, answersRevealed, activeQuiz, activeLevel } = useQuiz();
   
-  // Calculate normalized percentage for the circle
-  const radius = 18;
+  // Get the initial time for the current level to calculate progress
+  const initialTime = activeQuiz?.timeouts_in_seconds[activeLevel] || 60;
+  
+  // Calculate progress percentage (0 to 1)
+  const progress = timeLeft / initialTime;
+  
+  // Calculate circle properties
+  const radius = 20;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference * (1 - timeLeft / 60); // Normalize to 60s max
+  const strokeDashoffset = circumference * (1 - progress);
   
-  // Choose color based on time left
+  // Choose color based on time left percentage
   const getTimerColor = () => {
-    if (timeLeft > 15) return '#10B981'; // Green
-    if (timeLeft > 5) return '#F97316';  // Orange
-    return '#EF4444';                     // Red
+    if (progress > 0.5) return '#10B981'; // Green
+    if (progress > 0.25) return '#F59E0B'; // Yellow
+    return '#EF4444'; // Red
   };
   
   // Format time as MM:SS
@@ -24,39 +30,71 @@ const Timer = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Animation class for last 5 seconds
-  const pulseClass = timeLeft <= 5 && isRunning ? 'animate-pulse text-quiz-red' : '';
+  // Get size classes based on urgency
+  const getSizeClasses = () => {
+    if (timeLeft <= 5 && isRunning) return 'w-16 h-16'; // Larger when urgent
+    return 'w-14 h-14'; // Normal size
+  };
+  
+  // Animation classes for urgency
+  const getAnimationClasses = () => {
+    if (timeLeft <= 10 && timeLeft > 5 && isRunning) return 'animate-pulse';
+    if (timeLeft <= 5 && isRunning) return 'animate-bounce';
+    return '';
+  };
 
   return (
-    <div className={`flex items-center justify-center ${answersRevealed ? 'opacity-50' : ''}`}>
-      <div className="relative inline-flex">
-        <svg className="w-12 h-12">
+    <div className={`flex items-center justify-center ${answersRevealed ? 'opacity-60' : ''}`}>
+      <div className={`relative inline-flex ${getSizeClasses()} ${getAnimationClasses()}`}>
+        {/* Background circle */}
+        <svg className="w-full h-full transform -rotate-90">
           <circle 
             className="text-gray-200" 
-            strokeWidth="4" 
+            strokeWidth="3" 
             stroke="currentColor" 
             fill="transparent" 
             r={radius} 
-            cx="24" 
-            cy="24"
+            cx="50%" 
+            cy="50%"
           />
+          {/* Progress circle */}
           <circle 
-            className="transition-all duration-1000 ease-in-out"
-            strokeWidth="4" 
+            className="transition-all duration-1000 ease-linear"
+            strokeWidth="3" 
             strokeDasharray={circumference} 
             strokeDashoffset={isRunning ? strokeDashoffset : 0} 
             strokeLinecap="round" 
             stroke={getTimerColor()} 
             fill="transparent" 
             r={radius} 
-            cx="24" 
-            cy="24" 
-            transform="rotate(-90 24 24)"
+            cx="50%" 
+            cy="50%"
           />
         </svg>
-        <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${pulseClass}`}>
-          {formatTime(timeLeft)}
-        </span>
+        
+        {/* Time display */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={`text-xs font-bold ${
+            timeLeft <= 5 && isRunning ? 'text-red-600' : 'text-gray-700'
+          }`}>
+            {formatTime(timeLeft)}
+          </span>
+        </div>
+        
+        {/* Warning indicator for last 10 seconds */}
+        {timeLeft <= 10 && isRunning && !answersRevealed && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+        )}
+      </div>
+      
+      {/* Status text */}
+      <div className="ml-3 text-sm">
+        <div className="font-medium text-gray-700">
+          {isRunning && !answersRevealed ? 'Time Running' : 'Paused'}
+        </div>
+        <div className="text-xs text-gray-500">
+          {initialTime}s total
+        </div>
       </div>
     </div>
   );
