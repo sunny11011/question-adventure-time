@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +12,7 @@ export type Question = {
   options: string[];
   correctAnswer: number;
   level: QuizLevel;
-  teamId?: string; // Add team-specific questions
+  teamId?: string;
 };
 
 export type Team = {
@@ -73,7 +72,7 @@ type QuizContextType = {
   startQuiz: (quizId: string) => void;
   answerQuestion: (questionId: string, optionIndex: number) => void;
   nextQuestion: () => void;
-  nextLevel: () => boolean;
+  nextLevel: () => Promise<boolean>;
   endQuiz: () => void;
   loadQuizzes: () => Promise<void>;
   deleteQuiz: (quizId: string) => Promise<void>;
@@ -188,35 +187,33 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       
       console.log(`Need ${totalQuestionsNeeded} questions (${questionsPerTeam} per team x ${quiz.teams.length} teams)`);
       
-      // Generate questions for this level
       const questions = await generateQuizQuestions(
         quiz.category_ids || [], 
         { [level]: totalQuestionsNeeded, easy: 0, medium: 0, hard: 0 },
         quiz.teams.length
       );
       
-      // Filter questions for current level and distribute to teams
       const currentLevelQuestions = questions.filter(q => q.level === level);
-      const questionsWithTeams = currentLevelQuestions.map((question, index) => {
-        const teamIndex = Math.floor(index / questionsPerTeam);
+      
+      // Properly assign team IDs based on the actual team IDs from the quiz
+      const questionsWithCorrectTeamIds = currentLevelQuestions.map((question, index) => {
+        const teamIndex = index % quiz.teams.length;
         return {
           ...question,
-          teamId: quiz.teams[teamIndex % quiz.teams.length].id
+          teamId: quiz.teams[teamIndex].id
         };
       });
       
-      console.log(`Generated ${questionsWithTeams.length} questions for level ${level}`);
-      setLevelQuestions(questionsWithTeams);
+      console.log(`Generated ${questionsWithCorrectTeamIds.length} questions for level ${level}`);
+      setLevelQuestions(questionsWithCorrectTeamIds);
       
-      // Update active quiz with new questions
       setActiveQuiz(prev => {
         if (!prev) return null;
         
-        // Remove old questions for this level and add new ones
         const otherLevelQuestions = prev.questions.filter(q => q.level !== level);
         return {
           ...prev,
-          questions: [...otherLevelQuestions, ...questionsWithTeams]
+          questions: [...otherLevelQuestions, ...questionsWithCorrectTeamIds]
         };
       });
       
@@ -237,7 +234,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     try {
       console.log('Starting quiz creation with data:', quizData);
       
-      // Save to Supabase without questions first
       const { data, error } = await supabase
         .from('quizzes')
         .insert({
@@ -245,7 +241,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           topics: quizData.topics,
           created_by: user.id,
           teams: quizData.teams,
-          questions: [], // Start with empty questions
+          questions: [],
           show_answers_at_end: quizData.show_answers_at_end,
           timeouts_in_seconds: quizData.timeouts_in_seconds,
           questions_per_level: quizData.questions_per_level,
@@ -258,7 +254,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
 
       console.log('Quiz saved to database:', data);
 
-      // Reload quizzes
       await loadQuizzes();
       
       toast.success('Quiz created successfully!');
@@ -284,7 +279,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
 
       if (error) throw error;
 
-      // Update local state
       setQuizzes(prev => prev.filter(quiz => quiz.id !== quizId));
       
       toast.success('Quiz deleted successfully!');
@@ -303,7 +297,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     
     console.log('Starting quiz:', quiz);
     
-    // Reset quiz state
     setActiveQuiz(quiz);
     setActiveLevel('easy');
     setCurrentQuestionIndex(0);
@@ -312,10 +305,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setAnswersRevealed(false);
     setLevelQuestions([]);
     
-    // Load questions for easy level first
     await loadQuestionsForLevel(quiz, 'easy');
     
-    // Set the timeout for the first question and start timer immediately
     const initialTime = quiz.timeouts_in_seconds.easy;
     setTimeLeft(initialTime);
     setIsRunning(true);
@@ -331,18 +322,15 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     
     setSelectedOption(optionIndex);
     
-    // If we're not showing answers at the end, reveal it now
     if (!activeQuiz.show_answers_at_end) {
       setAnswersRevealed(true);
       setIsRunning(false);
       if (timer) clearInterval(timer);
     } else {
-      // If showing answers at end, stop timer but don't reveal answer
       setIsRunning(false);
       if (timer) clearInterval(timer);
     }
     
-    // Update team score
     const isCorrect = optionIndex === question.correctAnswer;
     
     const updatedTeams = activeQuiz.teams.map((team, i) => {
@@ -372,31 +360,25 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
   const nextQuestion = () => {
     if (!activeQuiz) return;
     
-    // Reset answer state
     setSelectedOption(null);
     setAnswersRevealed(false);
     
-    // Get questions for current team and level
     const currentTeam = activeQuiz.teams[currentTeamIndex];
     const teamQuestions = activeQuiz.questions.filter(q => 
       q.level === activeLevel && q.teamId === currentTeam.id
     );
     
-    // If we've reached the end of the level for this team, stay at the last question
     if (currentQuestionIndex >= teamQuestions.length - 1) {
       return;
     }
     
-    // Move to next team
     const nextTeamIndex = (currentTeamIndex + 1) % activeQuiz.teams.length;
     setCurrentTeamIndex(nextTeamIndex);
     
-    // If we've gone through all teams, move to the next question
     if (nextTeamIndex === 0) {
       setCurrentQuestionIndex(prev => prev + 1);
     }
     
-    // Reset timer and start immediately
     const timerDuration = activeQuiz.timeouts_in_seconds[activeLevel];
     setTimeLeft(timerDuration);
     setIsRunning(true);
@@ -405,7 +387,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
   const nextLevel = async () => {
     if (!activeQuiz) return false;
     
-    // Move to next level
     if (activeLevel === 'easy') {
       setActiveLevel('medium');
       setCurrentQuestionIndex(0);
@@ -413,7 +394,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setSelectedOption(null);
       setAnswersRevealed(false);
       
-      // Load questions for medium level
       await loadQuestionsForLevel(activeQuiz, 'medium');
       
       const timerDuration = activeQuiz.timeouts_in_seconds.medium;
@@ -427,7 +407,6 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setSelectedOption(null);
       setAnswersRevealed(false);
       
-      // Load questions for hard level
       await loadQuestionsForLevel(activeQuiz, 'hard');
       
       const timerDuration = activeQuiz.timeouts_in_seconds.hard;
@@ -436,12 +415,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       return true;
     }
     
-    // No more levels
     return false;
   };
 
   const endQuiz = () => {
-    // Reset quiz state
     setActiveQuiz(null);
     setActiveLevel('easy');
     setCurrentQuestionIndex(0);

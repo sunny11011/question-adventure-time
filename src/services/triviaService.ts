@@ -1,6 +1,6 @@
+
 import { Question, QuizLevel } from '@/contexts/QuizContext';
 
-// Trivia API endpoints
 const TRIVIA_CATEGORIES_URL = 'https://opentdb.com/api_category.php';
 const TRIVIA_QUESTIONS_URL = 'https://opentdb.com/api.php';
 
@@ -35,7 +35,6 @@ export const generateQuizQuestions = async (
   
   console.log('Generating questions with config:', { categoryIds, questionsPerLevel, teamCount });
   
-  // Generate questions for each level that has questions requested
   for (const level of ['easy', 'medium', 'hard'] as QuizLevel[]) {
     const questionsNeeded = questionsPerLevel[level];
     
@@ -46,7 +45,6 @@ export const generateQuizQuestions = async (
     
     console.log(`Generating ${questionsNeeded} ${level} questions`);
     
-    // Map difficulty levels
     const difficultyMap = {
       easy: 'easy',
       medium: 'medium',
@@ -57,7 +55,7 @@ export const generateQuizQuestions = async (
       let allLevelQuestions = [];
       
       if (categoryIds.length > 0) {
-        // Fetch questions from each selected category
+        // Fetch questions from each category separately
         const questionsPerCategory = Math.ceil(questionsNeeded / categoryIds.length);
         
         for (const categoryId of categoryIds) {
@@ -73,7 +71,6 @@ export const generateQuizQuestions = async (
           console.log(`Got ${categoryQuestions.length} questions from category ${categoryId}`);
         }
       } else {
-        // Fetch from general trivia without category filter
         console.log(`Fetching ${questionsNeeded} ${level} questions from general trivia`);
         const generalQuestions = await fetchTriviaQuestions(
           questionsNeeded,
@@ -84,17 +81,14 @@ export const generateQuizQuestions = async (
         console.log(`Got ${generalQuestions.length} general questions`);
       }
       
-      // Shuffle all questions to ensure randomness
       allLevelQuestions = shuffleArray(allLevelQuestions);
       console.log(`Total ${level} questions fetched: ${allLevelQuestions.length}`);
       
-      // Take only the number we need
       const questionsToUse = allLevelQuestions.slice(0, questionsNeeded);
       
-      // Convert to our Question format
+      // Distribute questions to teams
       questionsToUse.forEach((triviaQuestion, index) => {
         if (triviaQuestion) {
-          // Shuffle options and find correct answer position
           const shuffledOptions = shuffleArray([
             decodeHtml(triviaQuestion.correct_answer),
             ...triviaQuestion.incorrect_answers.map(decodeHtml)
@@ -102,17 +96,20 @@ export const generateQuizQuestions = async (
           
           const correctAnswerIndex = shuffledOptions.indexOf(decodeHtml(triviaQuestion.correct_answer));
           
+          // Calculate which team this question belongs to
+          const teamIndex = index % teamCount;
+          
           const question: Question = {
             id: `q_${level}_${index}_${Date.now()}_${Math.random()}`,
             text: decodeHtml(triviaQuestion.question),
             options: shuffledOptions,
             correctAnswer: correctAnswerIndex,
             level: level,
-            teamId: `temp_${index}` // Will be assigned properly later
+            teamId: `team_${teamIndex}`
           };
           
           questions.push(question);
-          console.log(`Added ${level} question: ${question.text.substring(0, 50)}...`);
+          console.log(`Added ${level} question for team ${teamIndex}: ${question.text.substring(0, 50)}...`);
         }
       });
       
@@ -124,13 +121,14 @@ export const generateQuizQuestions = async (
         console.log(`Adding ${neededFallbacks} fallback questions for ${level} level`);
         
         for (let i = 0; i < neededFallbacks; i++) {
+          const teamIndex = (currentLevelQuestions.length + i) % teamCount;
           const fallbackQuestion: Question = {
             id: `q_${level}_fallback_${i}_${Date.now()}`,
             text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${currentLevelQuestions.length + i + 1}`,
             options: ['Option A', 'Option B', 'Option C', 'Option D'],
             correctAnswer: 0,
             level: level,
-            teamId: `temp_fallback_${i}`
+            teamId: `team_${teamIndex}`
           };
           questions.push(fallbackQuestion);
         }
@@ -139,15 +137,15 @@ export const generateQuizQuestions = async (
     } catch (error) {
       console.error(`Error generating ${level} questions:`, error);
       
-      // Complete fallback: create sample questions
       for (let i = 0; i < questionsNeeded; i++) {
+        const teamIndex = i % teamCount;
         const fallbackQuestion: Question = {
           id: `q_${level}_error_fallback_${i}_${Date.now()}`,
           text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${i + 1}`,
           options: ['Option A', 'Option B', 'Option C', 'Option D'],
           correctAnswer: 0,
           level: level,
-          teamId: `temp_error_${i}`
+          teamId: `team_${teamIndex}`
         };
         questions.push(fallbackQuestion);
       }
@@ -159,7 +157,6 @@ export const generateQuizQuestions = async (
 };
 
 const fetchTriviaQuestions = async (amount: number, category: number | null, difficulty: string) => {
-  // Trivia API has a limit of 50 questions per request
   const maxPerRequest = 50;
   const questions = [];
   
@@ -191,24 +188,23 @@ const fetchTriviaQuestions = async (amount: number, category: number | null, dif
       
       if (data.response_code !== 0) {
         console.warn(`Trivia API warning: response code ${data.response_code}`);
-        break; // Stop trying if API returns error
+        break;
       }
       
       if (data.results && data.results.length > 0) {
         questions.push(...data.results);
         remaining -= data.results.length;
       } else {
-        break; // No more questions available
+        break;
       }
       
-      // Small delay to avoid rate limiting
       if (remaining > 0) {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       
     } catch (error) {
       console.error('Error fetching trivia questions:', error);
-      break; // Stop on error
+      break;
     }
   }
   
