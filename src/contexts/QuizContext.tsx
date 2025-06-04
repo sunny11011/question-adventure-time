@@ -45,10 +45,19 @@ export type Quiz = {
     medium: number;
     hard: number;
   };
-  category_ids?: number[];
+  category_ids: number[];  // Make this required instead of optional
 };
 
-type QuizContextType = {
+interface TriviaQuestion {
+  category: string;
+  type: string;
+  difficulty: string;
+  question: string;
+  correct_answer: string;
+  incorrect_answers: string[];
+}
+
+export type QuizContextType = {
   quizzes: Quiz[];
   activeQuiz: Quiz | null;
   isCreating: boolean;
@@ -59,6 +68,7 @@ type QuizContextType = {
   setCurrentQuestionIndex: (index: number) => void;
   currentTeamIndex: number;
   setCurrentTeamIndex: (index: number) => void;
+  setTimeLeft: (time: number) => void;
   timeLeft: number;
   isRunning: boolean;
   setIsRunning: (value: boolean) => void;
@@ -177,51 +187,133 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     }
   };
 
+  const fetchQuestionsForCategory = async (
+    categoryId: number,
+    difficulty: string,
+    amount: number
+  ): Promise<TriviaQuestion[]> => {
+    try {
+      const response = await fetch(
+        `https://opentdb.com/api.php?amount=${amount}&category=${categoryId}&difficulty=${difficulty}&type=multiple`
+      );
+      const data = await response.json();
+      return data.results || [];
+    } catch (error) {
+      console.error(`Error fetching questions for category ${categoryId}:`, error);
+      return [];
+    }
+  };
+
+  // Replace the existing loadQuestionsForLevel function
   const loadQuestionsForLevel = async (quiz: Quiz, level: QuizLevel) => {
     setIsLoadingQuestions(true);
     console.log(`Loading questions for level: ${level}`);
     
     try {
-      const questionsPerTeam = quiz.questions_per_level[level];
-      const totalQuestionsNeeded = questionsPerTeam * quiz.teams.length;
+      const questionsNeeded = quiz.questions_per_level[level] * quiz.teams.length;
+      const questionsPerCategory = Math.ceil(questionsNeeded / (quiz.category_ids?.length || 1));
       
-      console.log(`Need ${totalQuestionsNeeded} questions (${questionsPerTeam} per team x ${quiz.teams.length} teams)`);
-      
-      const questions = await generateQuizQuestions(
-        quiz.category_ids || [], 
-        { [level]: totalQuestionsNeeded, easy: 0, medium: 0, hard: 0 },
-        quiz.teams.length
+      if (!quiz.category_ids || quiz.category_ids.length === 0) {
+        throw new Error('No categories selected for quiz');
+      }
+
+      // Fetch questions from all selected categories
+      const questionPromises = quiz.category_ids.map(categoryId =>
+        fetchQuestionsForCategory(
+          categoryId,
+          level.toLowerCase(),
+          questionsPerCategory
+        )
       );
+
+      const categoryResults = await Promise.all(questionPromises);
+      const allQuestions = categoryResults.flat();
       
-      const currentLevelQuestions = questions.filter(q => q.level === level);
+      if (allQuestions.length === 0) {
+        throw new Error('No questions available for selected categories');
+      }
+
+      // Shuffle all questions
+      const shuffledQuestions = allQuestions.sort(() => Math.random() - 0.5);
       
-      // Properly assign team IDs based on the actual team IDs from the quiz
-      const questionsWithCorrectTeamIds = currentLevelQuestions.map((question, index) => {
-        const teamIndex = index % quiz.teams.length;
-        return {
-          ...question,
-          teamId: quiz.teams[teamIndex].id
-        };
-      });
+      // Take only the number of questions we need
+      const questionsToUse = shuffledQuestions.slice(0, questionsNeeded);
       
-      console.log(`Generated ${questionsWithCorrectTeamIds.length} questions for level ${level}`);
-      setLevelQuestions(questionsWithCorrectTeamIds);
+      // Format and distribute questions to teams
+      const finalQuestions: Question[] = [];
       
-      setActiveQuiz(prev => {
-        if (!prev) return null;
+      // Distribute questions to teams in round-robin fashion
+      quiz.teams.forEach((team, teamIndex) => {
+        // Get questions for this team
+        const teamQuestionsCount = quiz.questions_per_level[level];
+        const startIdx = teamIndex * teamQuestionsCount;
+        const teamQuestions = questionsToUse.slice(startIdx, startIdx + teamQuestionsCount);
         
-        const otherLevelQuestions = prev.questions.filter(q => q.level !== level);
-        return {
-          ...prev,
-          questions: [...otherLevelQuestions, ...questionsWithCorrectTeamIds]
-        };
+        // Format and add team's questions
+        teamQuestions.forEach((q, qIndex) => {
+          const options = [q.correct_answer, ...q.incorrect_answers].sort(() => Math.random() - 0.5);
+          
+          finalQuestions.push({
+            id: `${level}_${teamIndex}_${qIndex}_${Date.now()}`,
+            text: q.question,
+            options: options,
+            correctAnswer: options.indexOf(q.correct_answer),
+            level: level,
+            teamId: team.id // Assign the team ID to each question
+          });
+        });
       });
+
+      // Update active quiz with new questions
+      const updatedQuiz = {
+        ...quiz,
+        questions: [
+          ...quiz.questions.filter(q => q.level !== level),
+          ...finalQuestions
+        ]
+      };
+      
+      setActiveQuiz(updatedQuiz);
+      setLevelQuestions(finalQuestions);
+      
+      console.log(`Loaded ${finalQuestions.length} questions for level ${level}`, finalQuestions);
+      setIsLoadingQuestions(false);
       
     } catch (error) {
-      console.error('Error loading questions for level:', error);
-      toast.error(`Failed to load questions for ${level} level`);
-    } finally {
+      console.error('Error loading questions:', error);
+      
+      // Create fallback questions if API fails
+      const fallbackQuestions: Question[] = [];
+      
+      // Generate fallback questions for each team
+      quiz.teams.forEach((team, teamIndex) => {
+        const questionsPerTeam = quiz.questions_per_level[level];
+        
+        for (let i = 0; i < questionsPerTeam; i++) {
+          fallbackQuestions.push({
+            id: `${level}_fallback_${teamIndex}_${i}_${Date.now()}`,
+            text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${i + 1} for ${team.name}`,
+            options: ['Option A', 'Option B', 'Option C', 'Option D'],
+            correctAnswer: 0,
+            level: level,
+            teamId: team.id
+          });
+        }
+      });
+      
+      // Update active quiz with fallback questions
+      const updatedQuiz = {
+        ...quiz,
+        questions: [
+          ...quiz.questions.filter(q => q.level !== level),
+          ...fallbackQuestions
+        ]
+      };
+      
+      setActiveQuiz(updatedQuiz);
+      setLevelQuestions(fallbackQuestions);
       setIsLoadingQuestions(false);
+      toast.error('Using fallback questions due to API error');
     }
   };
 
@@ -257,9 +349,9 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       await loadQuizzes();
       
       toast.success('Quiz created successfully!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating quiz:', error);
-      toast.error('Failed to create quiz: ' + error.message);
+      toast.error('Failed to create quiz: ' + (error instanceof Error ? error.message : 'Unknown error'));
       throw error;
     }
   };
@@ -282,36 +374,45 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setQuizzes(prev => prev.filter(quiz => quiz.id !== quizId));
       
       toast.success('Quiz deleted successfully!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting quiz:', error);
-      toast.error('Failed to delete quiz: ' + error.message);
+      toast.error('Failed to delete quiz: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      throw error;
     }
   };
 
   const startQuiz = async (quizId: string) => {
-    const quiz = quizzes.find(q => q.id === quizId);
-    if (!quiz) {
-      toast.error('Quiz not found');
-      return;
+    try {
+      const quiz = quizzes.find(q => q.id === quizId);
+      if (!quiz) {
+        toast.error('Quiz not found');
+        return;
+      }
+      
+      setIsLoadingQuestions(true);
+      
+      console.log('Starting quiz:', quiz);
+      
+      setActiveQuiz(quiz);
+      setActiveLevel('easy');
+      setCurrentQuestionIndex(0);
+      setCurrentTeamIndex(0);
+      setSelectedOption(null);
+      setAnswersRevealed(false);
+      setLevelQuestions([]);
+      
+      // Load questions for the first level before starting
+      await loadQuestionsForLevel(quiz, 'easy');
+      
+      const initialTime = quiz.timeouts_in_seconds.easy;
+      setTimeLeft(initialTime);
+      setIsRunning(true);
+      setIsLoadingQuestions(false);
+    } catch (error) {
+      console.error('Error starting quiz:', error);
+      toast.error('Failed to start quiz');
+      setIsLoadingQuestions(false);
     }
-    
-    console.log('Starting quiz:', quiz);
-    
-    setActiveQuiz(quiz);
-    setActiveLevel('easy');
-    setCurrentQuestionIndex(0);
-    setCurrentTeamIndex(0);
-    setSelectedOption(null);
-    setAnswersRevealed(false);
-    setLevelQuestions([]);
-    
-    await loadQuestionsForLevel(quiz, 'easy');
-    
-    const initialTime = quiz.timeouts_in_seconds.easy;
-    setTimeLeft(initialTime);
-    setIsRunning(true);
-    
-    console.log('Quiz state set, timer started with', initialTime, 'seconds');
   };
 
   const answerQuestion = (questionId: string, optionIndex: number) => {
@@ -384,38 +485,48 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setIsRunning(true);
   };
 
-  const nextLevel = async () => {
+  const nextLevel = async (): Promise<boolean> => {
     if (!activeQuiz) return false;
     
-    if (activeLevel === 'easy') {
-      setActiveLevel('medium');
-      setCurrentQuestionIndex(0);
-      setCurrentTeamIndex(0);
-      setSelectedOption(null);
-      setAnswersRevealed(false);
+    try {
+      setIsLoadingQuestions(true);
       
-      await loadQuestionsForLevel(activeQuiz, 'medium');
+      if (activeLevel === 'easy') {
+        await loadQuestionsForLevel(activeQuiz, 'medium');
+        setActiveLevel('medium');
+        setCurrentQuestionIndex(0);
+        setCurrentTeamIndex(0);
+        setSelectedOption(null);
+        setAnswersRevealed(false);
+        
+        const timerDuration = activeQuiz.timeouts_in_seconds.medium;
+        setTimeLeft(timerDuration);
+        setIsRunning(true);
+        setIsLoadingQuestions(false);
+        return true;
+      } else if (activeLevel === 'medium') {
+        await loadQuestionsForLevel(activeQuiz, 'hard');
+        setActiveLevel('hard');
+        setCurrentQuestionIndex(0);
+        setCurrentTeamIndex(0);
+        setSelectedOption(null);
+        setAnswersRevealed(false);
+        
+        const timerDuration = activeQuiz.timeouts_in_seconds.hard;
+        setTimeLeft(timerDuration);
+        setIsRunning(true);
+        setIsLoadingQuestions(false);
+        return true;
+      }
       
-      const timerDuration = activeQuiz.timeouts_in_seconds.medium;
-      setTimeLeft(timerDuration);
-      setIsRunning(true);
-      return true;
-    } else if (activeLevel === 'medium') {
-      setActiveLevel('hard');
-      setCurrentQuestionIndex(0);
-      setCurrentTeamIndex(0);
-      setSelectedOption(null);
-      setAnswersRevealed(false);
-      
-      await loadQuestionsForLevel(activeQuiz, 'hard');
-      
-      const timerDuration = activeQuiz.timeouts_in_seconds.hard;
-      setTimeLeft(timerDuration);
-      setIsRunning(true);
-      return true;
+      setIsLoadingQuestions(false);
+      return false;
+    } catch (error) {
+      console.error('Error transitioning to next level:', error);
+      toast.error('Failed to load next level');
+      setIsLoadingQuestions(false);
+      return false;
     }
-    
-    return false;
   };
 
   const endQuiz = () => {
@@ -442,6 +553,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setCurrentQuestionIndex,
     currentTeamIndex,
     setCurrentTeamIndex,
+    setTimeLeft,
     timeLeft,
     isRunning,
     setIsRunning,
