@@ -19,6 +19,7 @@ const QuizScreen = () => {
     selectedOption, 
     answersRevealed,
     isRunning,
+    isLoadingQuestions,
     nextQuestion,
     nextLevel,
     answerQuestion,
@@ -38,6 +39,19 @@ const QuizScreen = () => {
           >
             Go to Dashboard
           </Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show loading state when fetching questions
+  if (isLoadingQuestions) {
+    return (
+      <Layout>
+        <div className="container py-8 text-center">
+          <h1 className="text-2xl font-bold mb-4">Loading Questions...</h1>
+          <p>Fetching questions for {activeLevel} level</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-quiz-purple mx-auto mt-4"></div>
         </div>
       </Layout>
     );
@@ -121,7 +135,13 @@ const QuizScreen = () => {
   
   // Get label for button based on current state
   const getButtonLabel = () => {
-    if (!answersRevealed) {
+    // If showing answers at end and answer not selected, disable button
+    if (activeQuiz.show_answers_at_end && selectedOption === null) {
+      return 'Select an Answer';
+    }
+    
+    // If not showing answers at end and answer not revealed
+    if (!activeQuiz.show_answers_at_end && !answersRevealed) {
       return 'Reveal Answer';
     }
     
@@ -137,6 +157,26 @@ const QuizScreen = () => {
   
   // Handle button click
   const handleButtonClick = () => {
+    // If showing answers at end, skip reveal step
+    if (activeQuiz.show_answers_at_end) {
+      if (selectedOption === null) return; // Can't proceed without selection
+      
+      if (isLastQuestion) {
+        if (isLastLevel) {
+          // Quiz is complete, results will be shown automatically
+          return;
+        } else {
+          // Go to next level
+          handleContinueToNextLevel();
+        }
+      } else {
+        // Go to next question
+        handleNext();
+      }
+      return;
+    }
+    
+    // If not showing answers at end, reveal answer first
     if (!answersRevealed) {
       setAnswersRevealed(true);
       setIsRunning(false);
@@ -170,6 +210,9 @@ const QuizScreen = () => {
   };
   
   const levelInfo = getLevelInfo(activeLevel);
+  
+  // Determine if answers should be shown
+  const shouldShowAnswers = !activeQuiz.show_answers_at_end ? answersRevealed : false;
   
   return (
     <Layout>
@@ -211,7 +254,7 @@ const QuizScreen = () => {
                     // Determine card style
                     let cardClass = "option-card ";
                     
-                    if (answersRevealed) {
+                    if (shouldShowAnswers) {
                       if (index === currentQuestion.correctAnswer) {
                         cardClass += "option-card-correct";
                       } else if (index === selectedOption) {
@@ -234,7 +277,7 @@ const QuizScreen = () => {
                         <div className="flex items-center">
                           <div 
                             className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-white ${
-                              answersRevealed && index === currentQuestion.correctAnswer
+                              shouldShowAnswers && index === currentQuestion.correctAnswer
                                 ? 'bg-quiz-green'
                                 : index === selectedOption
                                   ? 'bg-quiz-purple'
@@ -246,7 +289,7 @@ const QuizScreen = () => {
                           <div>{option}</div>
                         </div>
                         
-                        {answersRevealed && index === currentQuestion.correctAnswer && (
+                        {shouldShowAnswers && index === currentQuestion.correctAnswer && (
                           <div className="absolute top-3 right-3 text-quiz-green font-medium text-sm">
                             Correct Answer
                           </div>
@@ -261,13 +304,13 @@ const QuizScreen = () => {
               <div className="flex justify-center">
                 <Button
                   className={`px-8 py-6 text-lg ${
-                    isLastQuestion && isLastLevel && answersRevealed
+                    isLastQuestion && isLastLevel && (shouldShowAnswers || activeQuiz.show_answers_at_end)
                       ? 'quiz-button-primary'
-                      : answersRevealed
+                      : shouldShowAnswers || (activeQuiz.show_answers_at_end && selectedOption !== null)
                         ? 'quiz-button-primary'
                         : 'quiz-button-secondary'
                   }`}
-                  disabled={!answersRevealed && selectedOption === null && isRunning}
+                  disabled={activeQuiz.show_answers_at_end ? selectedOption === null : (!shouldShowAnswers && selectedOption === null && isRunning)}
                   onClick={handleButtonClick}
                 >
                   {getButtonLabel()}

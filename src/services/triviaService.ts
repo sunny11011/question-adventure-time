@@ -1,4 +1,3 @@
-
 import { Question, QuizLevel } from '@/contexts/QuizContext';
 
 // Trivia API endpoints
@@ -34,11 +33,18 @@ export const generateQuizQuestions = async (
 ): Promise<Question[]> => {
   const questions: Question[] = [];
   
-  console.log('Generating questions for', teamCount, 'teams with categories:', categoryIds);
+  console.log('Generating questions with config:', { categoryIds, questionsPerLevel, teamCount });
   
-  // Generate questions for each level
+  // Generate questions for each level that has questions requested
   for (const level of ['easy', 'medium', 'hard'] as QuizLevel[]) {
-    const questionsPerTeam = questionsPerLevel[level];
+    const questionsNeeded = questionsPerLevel[level];
+    
+    if (questionsNeeded === 0) {
+      console.log(`Skipping ${level} level - no questions needed`);
+      continue;
+    }
+    
+    console.log(`Generating ${questionsNeeded} ${level} questions`);
     
     // Map difficulty levels
     const difficultyMap = {
@@ -47,23 +53,18 @@ export const generateQuizQuestions = async (
       hard: 'hard'
     };
     
-    console.log(`Starting ${level} questions generation for ${teamCount} teams, ${questionsPerTeam} questions each`);
-    
-    // Calculate total questions needed for this level
-    const totalQuestionsNeeded = questionsPerTeam * teamCount;
-    
-    // Fetch all questions for this level at once
-    let allLevelQuestions = [];
-    
     try {
+      let allLevelQuestions = [];
+      
       if (categoryIds.length > 0) {
         // Fetch questions from each selected category
+        const questionsPerCategory = Math.ceil(questionsNeeded / categoryIds.length);
+        
         for (const categoryId of categoryIds) {
-          const questionsFromCategory = Math.ceil(totalQuestionsNeeded / categoryIds.length);
-          console.log(`Fetching ${questionsFromCategory} ${level} questions from category ${categoryId}`);
+          console.log(`Fetching ${questionsPerCategory} ${level} questions from category ${categoryId}`);
           
           const categoryQuestions = await fetchTriviaQuestions(
-            questionsFromCategory,
+            questionsPerCategory,
             categoryId,
             difficultyMap[level]
           );
@@ -73,9 +74,9 @@ export const generateQuizQuestions = async (
         }
       } else {
         // Fetch from general trivia without category filter
-        console.log(`Fetching ${totalQuestionsNeeded} ${level} questions from general trivia`);
+        console.log(`Fetching ${questionsNeeded} ${level} questions from general trivia`);
         const generalQuestions = await fetchTriviaQuestions(
-          totalQuestionsNeeded,
+          questionsNeeded,
           null,
           difficultyMap[level]
         );
@@ -87,87 +88,73 @@ export const generateQuizQuestions = async (
       allLevelQuestions = shuffleArray(allLevelQuestions);
       console.log(`Total ${level} questions fetched: ${allLevelQuestions.length}`);
       
-      // Distribute questions to teams
-      for (let teamIndex = 0; teamIndex < teamCount; teamIndex++) {
-        const startIndex = teamIndex * questionsPerTeam;
-        const endIndex = startIndex + questionsPerTeam;
-        const teamQuestions = allLevelQuestions.slice(startIndex, endIndex);
-        
-        console.log(`Assigning questions ${startIndex}-${endIndex - 1} to team ${teamIndex + 1}`);
-        
-        teamQuestions.forEach((triviaQuestion, questionIndex) => {
-          if (triviaQuestion) {
-            // Shuffle options and find correct answer position
-            const shuffledOptions = shuffleArray([
-              decodeHtml(triviaQuestion.correct_answer),
-              ...triviaQuestion.incorrect_answers.map(decodeHtml)
-            ]);
-            
-            const correctAnswerIndex = shuffledOptions.indexOf(decodeHtml(triviaQuestion.correct_answer));
-            
-            const question: Question = {
-              id: `q_${level}_team${teamIndex}_${questionIndex}_${Date.now()}_${Math.random()}`,
-              text: decodeHtml(triviaQuestion.question),
-              options: shuffledOptions,
-              correctAnswer: correctAnswerIndex,
-              level: level,
-              teamId: `team_${teamIndex}`
-            };
-            
-            questions.push(question);
-            console.log(`Added question for team ${teamIndex + 1}: ${question.text.substring(0, 50)}...`);
-          }
-        });
-        
-        // If we don't have enough questions for this team, add fallback questions
-        const currentTeamQuestions = questions.filter(q => 
-          q.teamId === `team_${teamIndex}` && q.level === level
-        );
-        
-        const neededQuestions = questionsPerTeam - currentTeamQuestions.length;
-        if (neededQuestions > 0) {
-          console.log(`Adding ${neededQuestions} fallback questions for team ${teamIndex + 1}, level ${level}`);
+      // Take only the number we need
+      const questionsToUse = allLevelQuestions.slice(0, questionsNeeded);
+      
+      // Convert to our Question format
+      questionsToUse.forEach((triviaQuestion, index) => {
+        if (triviaQuestion) {
+          // Shuffle options and find correct answer position
+          const shuffledOptions = shuffleArray([
+            decodeHtml(triviaQuestion.correct_answer),
+            ...triviaQuestion.incorrect_answers.map(decodeHtml)
+          ]);
           
-          for (let i = 0; i < neededQuestions; i++) {
-            const fallbackQuestion: Question = {
-              id: `q_${level}_team${teamIndex}_fallback_${i}_${Date.now()}`,
-              text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${currentTeamQuestions.length + i + 1} for Team ${teamIndex + 1}`,
-              options: ['Option A', 'Option B', 'Option C', 'Option D'],
-              correctAnswer: 0,
-              level: level,
-              teamId: `team_${teamIndex}`
-            };
-            questions.push(fallbackQuestion);
-          }
+          const correctAnswerIndex = shuffledOptions.indexOf(decodeHtml(triviaQuestion.correct_answer));
+          
+          const question: Question = {
+            id: `q_${level}_${index}_${Date.now()}_${Math.random()}`,
+            text: decodeHtml(triviaQuestion.question),
+            options: shuffledOptions,
+            correctAnswer: correctAnswerIndex,
+            level: level,
+            teamId: `temp_${index}` // Will be assigned properly later
+          };
+          
+          questions.push(question);
+          console.log(`Added ${level} question: ${question.text.substring(0, 50)}...`);
+        }
+      });
+      
+      // Add fallback questions if we don't have enough
+      const currentLevelQuestions = questions.filter(q => q.level === level);
+      const neededFallbacks = questionsNeeded - currentLevelQuestions.length;
+      
+      if (neededFallbacks > 0) {
+        console.log(`Adding ${neededFallbacks} fallback questions for ${level} level`);
+        
+        for (let i = 0; i < neededFallbacks; i++) {
+          const fallbackQuestion: Question = {
+            id: `q_${level}_fallback_${i}_${Date.now()}`,
+            text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${currentLevelQuestions.length + i + 1}`,
+            options: ['Option A', 'Option B', 'Option C', 'Option D'],
+            correctAnswer: 0,
+            level: level,
+            teamId: `temp_fallback_${i}`
+          };
+          questions.push(fallbackQuestion);
         }
       }
       
     } catch (error) {
       console.error(`Error generating ${level} questions:`, error);
       
-      // Complete fallback: create sample questions for all teams
-      for (let teamIndex = 0; teamIndex < teamCount; teamIndex++) {
-        for (let i = 0; i < questionsPerLevel[level]; i++) {
-          const fallbackQuestion: Question = {
-            id: `q_${level}_team${teamIndex}_${i}_${Date.now()}_fallback`,
-            text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${i + 1} for Team ${teamIndex + 1}`,
-            options: ['Option A', 'Option B', 'Option C', 'Option D'],
-            correctAnswer: 0,
-            level: level,
-            teamId: `team_${teamIndex}`
-          };
-          questions.push(fallbackQuestion);
-        }
+      // Complete fallback: create sample questions
+      for (let i = 0; i < questionsNeeded; i++) {
+        const fallbackQuestion: Question = {
+          id: `q_${level}_error_fallback_${i}_${Date.now()}`,
+          text: `${level.charAt(0).toUpperCase() + level.slice(1)} Question ${i + 1}`,
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          correctAnswer: 0,
+          level: level,
+          teamId: `temp_error_${i}`
+        };
+        questions.push(fallbackQuestion);
       }
     }
   }
   
   console.log('Total questions generated:', questions.length);
-  console.log('Questions by team:', questions.reduce((acc, q) => {
-    acc[q.teamId] = (acc[q.teamId] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>));
-  
   return questions;
 };
 
@@ -177,7 +164,7 @@ const fetchTriviaQuestions = async (amount: number, category: number | null, dif
   const questions = [];
   
   let remaining = amount;
-  while (remaining > 0) {
+  while (remaining > 0 && questions.length < amount) {
     const requestAmount = Math.min(remaining, maxPerRequest);
     
     let url = `${TRIVIA_QUESTIONS_URL}?amount=${requestAmount}&difficulty=${difficulty}&type=multiple`;
@@ -216,7 +203,7 @@ const fetchTriviaQuestions = async (amount: number, category: number | null, dif
       
       // Small delay to avoid rate limiting
       if (remaining > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
     } catch (error) {

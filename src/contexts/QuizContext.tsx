@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +67,7 @@ type QuizContextType = {
   setSelectedOption: (option: number | null) => void;
   answersRevealed: boolean;
   setAnswersRevealed: (revealed: boolean) => void;
+  isLoadingQuestions: boolean;
   
   createQuiz: (quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'>) => Promise<void>;
   startQuiz: (quizId: string) => void;
@@ -104,6 +106,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [answersRevealed, setAnswersRevealed] = useState(false);
   const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [levelQuestions, setLevelQuestions] = useState<Question[]>([]);
 
   // Load quizzes when user changes
   useEffect(() => {
@@ -174,6 +178,56 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     }
   };
 
+  const loadQuestionsForLevel = async (quiz: Quiz, level: QuizLevel) => {
+    setIsLoadingQuestions(true);
+    console.log(`Loading questions for level: ${level}`);
+    
+    try {
+      const questionsPerTeam = quiz.questions_per_level[level];
+      const totalQuestionsNeeded = questionsPerTeam * quiz.teams.length;
+      
+      console.log(`Need ${totalQuestionsNeeded} questions (${questionsPerTeam} per team x ${quiz.teams.length} teams)`);
+      
+      // Generate questions for this level
+      const questions = await generateQuizQuestions(
+        quiz.category_ids || [], 
+        { [level]: totalQuestionsNeeded, easy: 0, medium: 0, hard: 0 },
+        quiz.teams.length
+      );
+      
+      // Filter questions for current level and distribute to teams
+      const currentLevelQuestions = questions.filter(q => q.level === level);
+      const questionsWithTeams = currentLevelQuestions.map((question, index) => {
+        const teamIndex = Math.floor(index / questionsPerTeam);
+        return {
+          ...question,
+          teamId: quiz.teams[teamIndex % quiz.teams.length].id
+        };
+      });
+      
+      console.log(`Generated ${questionsWithTeams.length} questions for level ${level}`);
+      setLevelQuestions(questionsWithTeams);
+      
+      // Update active quiz with new questions
+      setActiveQuiz(prev => {
+        if (!prev) return null;
+        
+        // Remove old questions for this level and add new ones
+        const otherLevelQuestions = prev.questions.filter(q => q.level !== level);
+        return {
+          ...prev,
+          questions: [...otherLevelQuestions, ...questionsWithTeams]
+        };
+      });
+      
+    } catch (error) {
+      console.error('Error loading questions for level:', error);
+      toast.error(`Failed to load questions for ${level} level`);
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
   const createQuiz = async (quizData: Omit<Quiz, 'id' | 'created_at' | 'questions'>) => {
     if (!user) {
       toast.error('You must be logged in to create a quiz');
@@ -183,27 +237,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     try {
       console.log('Starting quiz creation with data:', quizData);
       
-      // Generate questions using Trivia API with different questions for each team
-      const questions = await generateQuizQuestions(
-        quizData.category_ids || [], 
-        quizData.questions_per_level,
-        quizData.teams.length
-      );
-
-      console.log('Generated questions:', questions);
-
-      // Assign questions to teams using proper team IDs
-      const questionsWithTeams = questions.map((question, index) => {
-        const teamIndex = parseInt(question.teamId?.split('_')[1] || '0');
-        return {
-          ...question,
-          teamId: quizData.teams[teamIndex]?.id || quizData.teams[0].id
-        };
-      });
-
-      console.log('Questions with team assignments:', questionsWithTeams);
-
-      // Save to Supabase
+      // Save to Supabase without questions first
       const { data, error } = await supabase
         .from('quizzes')
         .insert({
@@ -211,7 +245,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
           topics: quizData.topics,
           created_by: user.id,
           teams: quizData.teams,
-          questions: questionsWithTeams,
+          questions: [], // Start with empty questions
           show_answers_at_end: quizData.show_answers_at_end,
           timeouts_in_seconds: quizData.timeouts_in_seconds,
           questions_per_level: quizData.questions_per_level,
@@ -260,7 +294,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     }
   };
 
-  const startQuiz = (quizId: string) => {
+  const startQuiz = async (quizId: string) => {
     const quiz = quizzes.find(q => q.id === quizId);
     if (!quiz) {
       toast.error('Quiz not found');
@@ -276,6 +310,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setCurrentTeamIndex(0);
     setSelectedOption(null);
     setAnswersRevealed(false);
+    setLevelQuestions([]);
+    
+    // Load questions for easy level first
+    await loadQuestionsForLevel(quiz, 'easy');
     
     // Set the timeout for the first question and start timer immediately
     const initialTime = quiz.timeouts_in_seconds.easy;
@@ -296,6 +334,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     // If we're not showing answers at the end, reveal it now
     if (!activeQuiz.show_answers_at_end) {
       setAnswersRevealed(true);
+      setIsRunning(false);
+      if (timer) clearInterval(timer);
+    } else {
+      // If showing answers at end, stop timer but don't reveal answer
       setIsRunning(false);
       if (timer) clearInterval(timer);
     }
@@ -360,7 +402,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setIsRunning(true);
   };
 
-  const nextLevel = () => {
+  const nextLevel = async () => {
     if (!activeQuiz) return false;
     
     // Move to next level
@@ -370,6 +412,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setCurrentTeamIndex(0);
       setSelectedOption(null);
       setAnswersRevealed(false);
+      
+      // Load questions for medium level
+      await loadQuestionsForLevel(activeQuiz, 'medium');
+      
       const timerDuration = activeQuiz.timeouts_in_seconds.medium;
       setTimeLeft(timerDuration);
       setIsRunning(true);
@@ -380,6 +426,10 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setCurrentTeamIndex(0);
       setSelectedOption(null);
       setAnswersRevealed(false);
+      
+      // Load questions for hard level
+      await loadQuestionsForLevel(activeQuiz, 'hard');
+      
       const timerDuration = activeQuiz.timeouts_in_seconds.hard;
       setTimeLeft(timerDuration);
       setIsRunning(true);
@@ -399,6 +449,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setIsRunning(false);
     setSelectedOption(null);
     setAnswersRevealed(false);
+    setLevelQuestions([]);
     if (timer) clearInterval(timer);
   };
 
@@ -421,6 +472,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setSelectedOption,
     answersRevealed,
     setAnswersRevealed,
+    isLoadingQuestions,
     createQuiz,
     startQuiz,
     answerQuestion,
@@ -440,6 +492,7 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     isRunning,
     selectedOption,
     answersRevealed,
+    isLoadingQuestions,
   ]);
 
   return (
