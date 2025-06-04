@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuiz, QuizLevel } from '@/contexts/QuizContext';
@@ -24,7 +23,12 @@ const QuizScreen = () => {
     nextLevel,
     answerQuestion,
     setAnswersRevealed,
-    setIsRunning
+    setIsRunning,
+    // Add missing state setters
+    setCurrentTeamIndex,
+    setCurrentQuestionIndex,
+    setSelectedOption,
+    setTimeLeft
   } = useQuiz();
   
   if (!activeQuiz) {
@@ -108,25 +112,33 @@ const QuizScreen = () => {
   };
   
   // Handle next question
-  const handleNext = () => {
-    // If we're at the end of the current level
+  const handleNext = async () => {
     if (isLastQuestion) {
       if (isLastLevel) {
-        // End of quiz, results will be shown automatically due to isQuizComplete check above
         return;
       } else {
-        // Go to next level
-        nextLevel();
+        await nextLevel();
       }
     } else {
-      // Go to next question
-      nextQuestion();
+      if (isLastTeam) {
+        setCurrentTeamIndex(0);
+        // Fix: Use direct number instead of function
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+      } else {
+        // Fix: Use direct number instead of function
+        setCurrentTeamIndex(currentTeamIndex + 1);
+      }
+      
+      setSelectedOption(null);
+      setAnswersRevealed(false);
+      setTimeLeft(activeQuiz.timeouts_in_seconds[activeLevel]);
+      setIsRunning(true);
     }
   };
   
   // Handle continue to next level
-  const handleContinueToNextLevel = () => {
-    const hasNextLevel = nextLevel();
+  const handleContinueToNextLevel = async () => {
+    const hasNextLevel = await nextLevel();
     if (!hasNextLevel) {
       // No more levels, quiz is complete
       // Results will be shown automatically due to isQuizComplete check above

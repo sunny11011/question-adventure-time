@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,9 +19,14 @@ const Dashboard = () => {
     setIsCreating(true);
   };
   
-  const handleStartQuiz = (quizId: string) => {
-    startQuiz(quizId);
-    navigate('/quiz');
+  const handleStartQuiz = async (quizId: string) => {
+    try {
+      await startQuiz(quizId);
+      navigate('/quiz');
+    } catch (error) {
+      console.error('Error starting quiz:', error);
+      // The error toast will be shown by the startQuiz function
+    }
   };
 
   const handleDeleteQuiz = async (quizId: string) => {

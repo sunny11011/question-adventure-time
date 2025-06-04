@@ -1,73 +1,111 @@
-# Welcome to your Lovable project
+# Question Adventure Time 🎮
 
-## Project info
+A modern interactive quiz application built with React, TypeScript, and TailwindCSS.
 
-**URL**: https://lovable.dev/projects/52096ca3-2628-4aa2-8cef-1765de794c29
+## Features
 
-## How can I edit this code?
+- Multiple difficulty levels (Easy, Medium, Hard)
+- Team-based gameplay
+- Real-time scoring system
+- Timer-based questions
+- Beautiful UI with animations
+- Responsive design for all devices
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- React 18
+- TypeScript
+- TailwindCSS
+- ShadcnUI Components
+- Vite
+- React Router
+- React Query
+- Supabase
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/52096ca3-2628-4aa2-8cef-1765de794c29) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js (v18 or higher)
+- npm or yarn
+- Supabase account (for backend services)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation Steps
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository
 
-Follow these steps:
+   ```bash
+   git clone https://github.com/sunny11011/question-adventure-time.git
+   cd question-adventure-time
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+2. Install dependencies
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Configure Supabase credentials
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+   - Create a new project at [Supabase](https://supabase.com)
+   - Go to Project Settings > API to get your project URL and anon/public key
+   - Open `src/integrations/supabase/client.ts`
+   - Replace `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` with your credentials
+   - Open `supabase/config.toml`
+   - Replace `project_id` with your Supabase project ID (found in Project Settings > General)
+
+4. Start the development server
+
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+5. Open your browser and visit `http://localhost:5173`
+
+### Database Schema
+
+The project uses the following Supabase tables:
+
+- `quizzes`: Stores quiz configurations and settings
+- `teams`: Stores team information
+- `questions`: Stores quiz questions and answers
+- `scores`: Stores team scores and progress
+
+## Project Structure
+
+```bash
+src
+├── components      # Reusable components
+├── hooks           # Custom React hooks
+├── pages           # Application pages
+├── styles          # Global styles and TailwindCSS configuration
+└── utils           # Utility functions
 ```
 
-**Edit a file directly in GitHub**
+## Contributing
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/YourFeature`)
+3. Make your changes
+4. Commit your changes (`git commit -m 'Add some feature'`)
+5. Push to the branch (`git push origin feature/YourFeature`)
+6. Open a pull request
 
-**Use GitHub Codespaces**
+## License
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## What technologies are used for this project?
+## Acknowledgments
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/52096ca3-2628-4aa2-8cef-1765de794c29) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- [React](https://reactjs.org/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [TailwindCSS](https://tailwindcss.com/)
+- [ShadcnUI](https://ui.shadcn.com/)
+- [Vite](https://vitejs.dev/)
+- [React Router](https://reactrouter.com/)
+- [React Query](https://react-query.tanstack.com/)
+- [Supabase](https://supabase.com/)
