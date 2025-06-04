@@ -11,8 +11,8 @@ const Timer = () => {
   // Calculate progress percentage (0 to 1)
   const progress = timeLeft / initialTime;
   
-  // Calculate circle properties
-  const radius = 20;
+  // Calculate circle properties for larger timer
+  const radius = 35;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progress);
   
@@ -30,10 +30,10 @@ const Timer = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Get size classes based on urgency
+  // Get size classes based on urgency - made bigger
   const getSizeClasses = () => {
-    if (timeLeft <= 5 && isRunning) return 'w-16 h-16'; // Larger when urgent
-    return 'w-14 h-14'; // Normal size
+    if (timeLeft <= 5 && isRunning) return 'w-24 h-24'; // Extra large when urgent
+    return 'w-20 h-20'; // Large size by default
   };
   
   // Animation classes for urgency
@@ -50,7 +50,7 @@ const Timer = () => {
         <svg className="w-full h-full transform -rotate-90">
           <circle 
             className="text-gray-200" 
-            strokeWidth="3" 
+            strokeWidth="4" 
             stroke="currentColor" 
             fill="transparent" 
             r={radius} 
@@ -60,7 +60,7 @@ const Timer = () => {
           {/* Progress circle */}
           <circle 
             className="transition-all duration-1000 ease-linear"
-            strokeWidth="3" 
+            strokeWidth="4" 
             strokeDasharray={circumference} 
             strokeDashoffset={isRunning ? strokeDashoffset : 0} 
             strokeLinecap="round" 
@@ -72,9 +72,9 @@ const Timer = () => {
           />
         </svg>
         
-        {/* Time display */}
+        {/* Time display - bigger text */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-xs font-bold ${
+          <span className={`text-lg font-bold ${
             timeLeft <= 5 && isRunning ? 'text-red-600' : 'text-gray-700'
           }`}>
             {formatTime(timeLeft)}
@@ -83,12 +83,12 @@ const Timer = () => {
         
         {/* Warning indicator for last 10 seconds */}
         {timeLeft <= 10 && isRunning && !answersRevealed && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+          <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-ping"></div>
         )}
       </div>
       
       {/* Status text */}
-      <div className="ml-3 text-sm">
+      <div className="ml-4 text-sm">
         <div className="font-medium text-gray-700">
           {isRunning && !answersRevealed ? 'Time Running' : 'Paused'}
         </div>

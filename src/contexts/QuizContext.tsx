@@ -192,11 +192,16 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
 
       console.log('Generated questions:', questions);
 
-      // Assign questions to teams
-      const questionsWithTeams = questions.map((question, index) => ({
-        ...question,
-        teamId: quizData.teams[index % quizData.teams.length].id
-      }));
+      // Assign questions to teams using proper team IDs
+      const questionsWithTeams = questions.map((question, index) => {
+        const teamIndex = parseInt(question.teamId?.split('_')[1] || '0');
+        return {
+          ...question,
+          teamId: quizData.teams[teamIndex]?.id || quizData.teams[0].id
+        };
+      });
+
+      console.log('Questions with team assignments:', questionsWithTeams);
 
       // Save to Supabase
       const { data, error } = await supabase
@@ -272,11 +277,12 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     setSelectedOption(null);
     setAnswersRevealed(false);
     
-    // Set the timeout for the first question
-    setTimeLeft(quiz.timeouts_in_seconds.easy);
+    // Set the timeout for the first question and start timer immediately
+    const initialTime = quiz.timeouts_in_seconds.easy;
+    setTimeLeft(initialTime);
     setIsRunning(true);
     
-    console.log('Quiz state set, navigating to quiz screen');
+    console.log('Quiz state set, timer started with', initialTime, 'seconds');
   };
 
   const answerQuestion = (questionId: string, optionIndex: number) => {
@@ -348,8 +354,9 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setCurrentQuestionIndex(prev => prev + 1);
     }
     
-    // Reset timer
-    setTimeLeft(activeQuiz.timeouts_in_seconds[activeLevel]);
+    // Reset timer and start immediately
+    const timerDuration = activeQuiz.timeouts_in_seconds[activeLevel];
+    setTimeLeft(timerDuration);
     setIsRunning(true);
   };
 
@@ -363,7 +370,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setCurrentTeamIndex(0);
       setSelectedOption(null);
       setAnswersRevealed(false);
-      setTimeLeft(activeQuiz.timeouts_in_seconds.medium);
+      const timerDuration = activeQuiz.timeouts_in_seconds.medium;
+      setTimeLeft(timerDuration);
       setIsRunning(true);
       return true;
     } else if (activeLevel === 'medium') {
@@ -372,7 +380,8 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
       setCurrentTeamIndex(0);
       setSelectedOption(null);
       setAnswersRevealed(false);
-      setTimeLeft(activeQuiz.timeouts_in_seconds.hard);
+      const timerDuration = activeQuiz.timeouts_in_seconds.hard;
+      setTimeLeft(timerDuration);
       setIsRunning(true);
       return true;
     }

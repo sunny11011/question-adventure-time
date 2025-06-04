@@ -58,7 +58,7 @@ const QuizScreen = () => {
   const isQuizComplete = isLastQuestion && isLastTeam && isLastLevel;
   
   // If all questions are answered for all levels, show the results
-  if (isQuizComplete && answersRevealed) {
+  if (isQuizComplete) {
     return (
       <Layout>
         <QuizResults />
@@ -98,7 +98,7 @@ const QuizScreen = () => {
     // If we're at the end of the current level
     if (isLastQuestion) {
       if (isLastLevel) {
-        // End of quiz, show results
+        // End of quiz, results will be shown automatically due to isQuizComplete check above
         return;
       } else {
         // Go to next level
@@ -114,15 +114,14 @@ const QuizScreen = () => {
   const handleContinueToNextLevel = () => {
     const hasNextLevel = nextLevel();
     if (!hasNextLevel) {
-      // No more levels, show results
-      setAnswersRevealed(true);
+      // No more levels, quiz is complete
+      // Results will be shown automatically due to isQuizComplete check above
     }
   };
   
   // Get label for button based on current state
   const getButtonLabel = () => {
     if (!answersRevealed) {
-      setIsRunning(false);
       return 'Reveal Answer';
     }
     
@@ -140,12 +139,13 @@ const QuizScreen = () => {
   const handleButtonClick = () => {
     if (!answersRevealed) {
       setAnswersRevealed(true);
+      setIsRunning(false);
       return;
     }
     
     if (isLastQuestion) {
       if (isLastLevel) {
-        // End of quiz, show results
+        // Quiz is complete, results will be shown automatically
         return;
       } else {
         // Go to next level
