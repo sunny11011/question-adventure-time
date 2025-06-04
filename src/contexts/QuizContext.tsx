@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateQuizQuestions } from '@/services/triviaService';
@@ -402,34 +402,48 @@ export const QuizProvider = ({ children }: QuizProviderProps) => {
     if (timer) clearInterval(timer);
   };
 
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    quizzes,
+    activeQuiz,
+    isCreating,
+    setIsCreating,
+    activeLevel,
+    setActiveLevel,
+    currentQuestionIndex,
+    setCurrentQuestionIndex,
+    currentTeamIndex,
+    setCurrentTeamIndex,
+    timeLeft,
+    isRunning,
+    setIsRunning,
+    selectedOption,
+    setSelectedOption,
+    answersRevealed,
+    setAnswersRevealed,
+    createQuiz,
+    startQuiz,
+    answerQuestion,
+    nextQuestion,
+    nextLevel,
+    endQuiz,
+    loadQuizzes,
+    deleteQuiz,
+  }), [
+    quizzes,
+    activeQuiz,
+    isCreating,
+    activeLevel,
+    currentQuestionIndex,
+    currentTeamIndex,
+    timeLeft,
+    isRunning,
+    selectedOption,
+    answersRevealed,
+  ]);
+
   return (
-    <QuizContext.Provider value={{
-      quizzes,
-      activeQuiz,
-      isCreating,
-      setIsCreating,
-      activeLevel,
-      setActiveLevel,
-      currentQuestionIndex,
-      setCurrentQuestionIndex,
-      currentTeamIndex,
-      setCurrentTeamIndex,
-      timeLeft,
-      isRunning,
-      setIsRunning,
-      selectedOption,
-      setSelectedOption,
-      answersRevealed,
-      setAnswersRevealed,
-      createQuiz,
-      startQuiz,
-      answerQuestion,
-      nextQuestion,
-      nextLevel,
-      endQuiz,
-      loadQuizzes,
-      deleteQuiz,
-    }}>
+    <QuizContext.Provider value={contextValue}>
       {children}
     </QuizContext.Provider>
   );
